@@ -10,7 +10,6 @@
     "contact": {},
     "license": "MIT",
     "environment": "client",
-    "accessWidener": "fasterflight.accesswidener",
     "entrypoints": {
         "client": [
             "com.fasterflight.FasterFlightMod"
@@ -22,10 +21,10 @@
     "depends": {
         "fabricloader": ">=0.14.0",
         "fabric": "*",
-        "minecraft": ">=1.18 <1.21",
-        "cloth-config": ">=8.0.0"
+        "minecraft": ">=1.18 <1.20",
+        "cloth-config": ">=6.0.0"
     },
     "recommends": {
-        "modmenu": ">=4.0.0"
+        "modmenu": ">=3.0.0"
     }
 }

@@ -9,6 +9,7 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.text.Text;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,21 +39,15 @@ public class ManualEntryRow extends AbstractConfigListEntry<Object> {
         this.field = field;
         this.sliderRow = sliderRow;
 
-        Text resetLabel = Text.translatable("text.cloth-config.reset_value");
+        Text resetLabel = TextCompat.translatable("text.cloth-config.reset_value");
 
-        // ButtonWidget has no builder factory in 1.19.2, so it is constructed directly.
-        this.resetButton = new ButtonWidget(
-                0, 0, 60, WIDGET_HEIGHT,
-                resetLabel,
-                button -> onReset.run());
+        // Constructed through ButtonCompat because 1.19.3 made the constructor protected and moved
+        // callers onto a builder that does not exist on 1.18.2/1.19.2.
+        this.resetButton = ButtonCompat.create(0, 0, 60, WIDGET_HEIGHT, resetLabel, onReset);
 
         // Adopt the row above's width so the two reset buttons line up exactly rather than relying on
         // the label measurement happening to agree with Cloth's own calculation.
         this.resetButton.setWidth(sliderRow.getResetButtonWidth());
-    }
-
-    public TextFieldWidget getField() {
-        return this.field;
     }
 
     @Override
@@ -64,22 +59,31 @@ public class ManualEntryRow extends AbstractConfigListEntry<Object> {
             TooltipBar.publish(HINT_KEY);
         }
 
-        // AbstractConfigListEntry only paints the hover highlight, so the label is drawn here.
+        // AbstractConfigListEntry paints only the hover highlight, so the label is drawn here.
         TextRenderer font = MinecraftClient.getInstance().textRenderer;
         int labelY = y + (entryHeight - 8) / 2;
         font.drawWithShadow(matrices, getDisplayedFieldName(), x, labelY, getPreferredTextColor());
 
         int resetWidth = this.resetButton.getWidth();
 
-        // Re-read every frame so the box tracks the slider when the window is resized.
-        this.field.setWidth(Math.max(20, this.sliderRow.getSliderWidth()));
-        this.field.x = this.sliderRow.getSliderLeft();
-        this.field.y = y + 1;
+        // Re-read every frame so the box tracks the slider when the window is resized, but only
+        // write the values when they actually change. TextFieldWidget keeps private caret state
+        // (firstCharacterIndex / selectionStart), and resizing re-clamps the visible text against
+        // that state, so writing the width unconditionally every frame would fight the caret while
+        // the player types and swallow freshly typed digits.
+        int targetWidth = Math.max(20, this.sliderRow.getSliderWidth());
+        if (this.field.getWidth() != targetWidth) {
+            this.field.setWidth(targetWidth);
+        }
+        int targetX = this.sliderRow.getSliderLeft();
+        int targetY = y + 1;
+        if (WidgetCompat.getX(this.field) != targetX || WidgetCompat.getY(this.field) != targetY) {
+            WidgetCompat.setPosition(this.field, targetX, targetY);
+        }
         this.field.setEditable(isEditable());
         this.field.render(matrices, mouseX, mouseY, delta);
 
-        this.resetButton.x = x + entryWidth - resetWidth - 2;
-        this.resetButton.y = y;
+        WidgetCompat.setPosition(this.resetButton, x + entryWidth - resetWidth - 2, y);
         this.resetButton.active = isEditable();
         this.resetButton.render(matrices, mouseX, mouseY, delta);
     }
@@ -92,9 +96,55 @@ public class ManualEntryRow extends AbstractConfigListEntry<Object> {
         return this.field.mouseClicked(mouseX, mouseY, button);
     }
 
+    /**
+     * Routes key presses to the borrowed text field.
+     *
+     * <p>Cloth never delivers {@code charTyped} to a list entry, so typing must be handled here.
+     * Listing the field in {@code children()} is enough for mouse clicks but not for keyboard.
+     *
+     * <p>{@code MultiplierSliderEntry} forwards the same way for the inline layout.
+     */
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (this.field.isFocused()) {
+            if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
+                this.field.setTextFieldFocused(false);
+                this.sliderRow.commitFieldFromCompanion();
+                return true;
+            }
+            if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+                this.field.setTextFieldFocused(false);
+                this.sliderRow.commitFieldFromCompanion();
+                return true;
+            }
+            return this.field.keyPressed(keyCode, scanCode, modifiers);
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public boolean charTyped(char chr, int modifiers) {
+        if (this.field.isFocused()) {
+            return this.field.charTyped(chr, modifiers);
+        }
+        return super.charTyped(chr, modifiers);
+    }
+
     @Override
     public Object getValue() {
         return null;
+    }
+
+    /**
+     * Cloth 8.0.75 (MC 1.19.0) declares this abstract; 8.3.134 gave it a default body, so
+     * implementing it is required for 1.19.0 and harmless on newer Cloth. Calling {@code super.save()}
+     * is not an option: it does not exist on 8.0.75.
+     *
+     * <p>This row owns no value of its own, so there is nothing to persist.
+     */
+    @Override
+    public void save() {
+        // Value ownership belongs to the borrowed slider row; see commitIfFocusJustLost there.
     }
 
     @Override

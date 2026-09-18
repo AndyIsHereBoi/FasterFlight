@@ -50,7 +50,7 @@ public final class MultiplierFormat {
     }
 
     public static Text toText(double value) {
-        return Text.literal(formatWithSuffix(value));
+        return TextCompat.literal(formatWithSuffix(value));
     }
 
     static TextRenderer font() {

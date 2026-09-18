@@ -2,11 +2,11 @@ package com.fasterflight.hud;
 
 import com.fasterflight.FlightSpeedController;
 import com.fasterflight.config.FasterFlightConfig;
+import com.fasterflight.config.TextCompat;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawableHelper;
 import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.text.Text;
 
 /**
  * Draws the active multiplier just above the hotbar while the boost is being applied.
@@ -42,6 +42,6 @@ public final class BoostIndicatorRenderer {
         int x = (screenWidth - textWidth) / 2;
         int y = screenHeight - HOTBAR_CLEARANCE;
 
-        DrawableHelper.drawTextWithShadow(matrices, client.textRenderer, Text.literal(label), x, y, TEXT_COLOR);
+        DrawableHelper.drawTextWithShadow(matrices, client.textRenderer, TextCompat.literal(label), x, y, TEXT_COLOR);
     }
 }

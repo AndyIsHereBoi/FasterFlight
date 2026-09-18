@@ -50,7 +50,7 @@ public class MultiplierSliderEntry extends IntegerSliderEntry {
                 toSlider(FasterFlightConfig.MIN_MULTIPLIER),
                 toSlider(FasterFlightConfig.MAX_MULTIPLIER),
                 toSlider(value),
-                Text.translatable("text.cloth-config.reset_value"),
+                TextCompat.translatable("text.cloth-config.reset_value"),
                 () -> toSlider(1.0D),
                 sliderValue -> onValueChanged.accept(fromSlider(sliderValue))
         );
@@ -60,7 +60,7 @@ public class MultiplierSliderEntry extends IntegerSliderEntry {
         this.multiplierField = new TextFieldWidget(
                 MultiplierFormat.font(),
                 0, 0, FIELD_WIDTH, WIDGET_HEIGHT,
-                Text.translatable("fasterflight.config.speedMultiplier")
+                TextCompat.translatable("fasterflight.config.speedMultiplier")
         ) {
             @Override
             public boolean mouseClicked(double mouseX, double mouseY, int button) {
@@ -80,10 +80,6 @@ public class MultiplierSliderEntry extends IntegerSliderEntry {
         // making it impossible to delete a digit because the rewritten text puts it straight back.
     }
 
-    public TextFieldWidget getMultiplierField() {
-        return this.multiplierField;
-    }
-
     /**
      * Records the slider's on-screen box for the row beneath to match.
      *
@@ -95,7 +91,7 @@ public class MultiplierSliderEntry extends IntegerSliderEntry {
     private void captureSliderGeometry(int rowX, int rowWidth) {
         Object widget = this.sliderWidget;
         if (widget instanceof ClickableWidget clickable) {
-            this.sliderLeft = clickable.x;
+            this.sliderLeft = WidgetCompat.getX(clickable);
             this.sliderWidth = clickable.getWidth();
             return;
         }
@@ -138,12 +134,24 @@ public class MultiplierSliderEntry extends IntegerSliderEntry {
 
         commitIfFocusJustLost();
 
+        // Mirror the slider into the box while it is being dragged. This runs every frame so the
+        // displayed text tracks the thumb, but it is skipped while the box has focus: overwriting a
+        // half-typed value would fight the player's own input, which is exactly what commit/caret
+        // handling elsewhere is careful to avoid.
+        mirrorSliderIntoField();
+
         if (this.fieldInSeparateRow) {
             return;
         }
 
-        this.multiplierField.x = x + SLIDER_WIDTH + WIDGET_GAP;
-        this.multiplierField.y = y + 1;
+        // Only reposition on change. Assigning position is harmless, but keeping this symmetrical
+        // with ManualEntryRow documents that this row must never resize the field while it is focused.
+        int targetX = x + SLIDER_WIDTH + WIDGET_GAP;
+        int targetY = y + 1;
+        if (WidgetCompat.getX(this.multiplierField) != targetX
+                || WidgetCompat.getY(this.multiplierField) != targetY) {
+            WidgetCompat.setPosition(this.multiplierField, targetX, targetY);
+        }
         this.multiplierField.setEditable(isEditable());
         this.multiplierField.render(matrices, mouseX, mouseY, delta);
     }
@@ -214,6 +222,24 @@ public class MultiplierSliderEntry extends IntegerSliderEntry {
     }
 
     /**
+     * Copies the slider's current value into the text box so dragging updates it live.
+     *
+     * <p>Skipped while the box is focused, and when the text already matches, so it cannot interrupt
+     * typing or thrash the field's caret state.
+     */
+    void mirrorSliderIntoField() {
+        if (this.multiplierField.isFocused()) {
+            return;
+        }
+
+        // The slider stores discrete steps, so format from the same source the label uses.
+        String target = MultiplierFormat.format(fromSlider(getValue()));
+        if (!target.equals(this.multiplierField.getText())) {
+            this.multiplierField.setText(target);
+        }
+    }
+
+    /**
      * {@code IntegerSliderEntry#setValue} is deprecated but is the only way to push a value in from
      * outside, and Cloth otherwise only writes to the config when the screen closes.
      */
@@ -228,6 +254,17 @@ public class MultiplierSliderEntry extends IntegerSliderEntry {
     public void resetToDefault() {
         applySliderValue(toSlider(1.0D));
         this.multiplierField.setText(MultiplierFormat.format(1.0D));
+    }
+
+    /**
+     * Commits the text box from the separate row.
+     *
+     * <p>{@code ManualEntryRow} renders this entry's field, so it owns the keyboard events for it,
+     * but the parsed value and the slider both live here. This exposes the commit step so the row
+     * can apply what was typed without duplicating the parsing logic.
+     */
+    void commitFieldFromCompanion() {
+        commitField();
     }
 
     private static int toSlider(double multiplier) {

@@ -42,7 +42,7 @@ final class TooltipBar {
 
         TextRenderer font = client.textRenderer;
         List<Text> lines = new ArrayList<>();
-        for (OrderedText wrapped : font.wrapLines(Text.translatable(hintKey), WRAP_PIXELS)) {
+        for (OrderedText wrapped : font.wrapLines(TextCompat.translatable(hintKey), WRAP_PIXELS)) {
             lines.add(toText(wrapped));
         }
         if (lines.isEmpty()) {
@@ -67,6 +67,6 @@ final class TooltipBar {
             builder.appendCodePoint(codePoint);
             return true;
         });
-        return Text.literal(builder.toString());
+        return TextCompat.literal(builder.toString());
     }
 }

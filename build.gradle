@@ -6,11 +6,6 @@ plugins {
 version = project.mod_version
 group = project.maven_group
 
-// Needed so Cloth Config's keybind entry can reach KeyBinding#boundKey.
-loom {
-    accessWidenerPath = file("src/main/resources/fasterflight.accesswidener")
-}
-
 repositories {
     // ModMenu
     maven {

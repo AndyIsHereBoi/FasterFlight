@@ -30,16 +30,16 @@ public class ModMenuIntegration implements ModMenuApi {
 
         ConfigBuilder builder = ConfigBuilder.create()
                 .setParentScreen(parent)
-                .setTitle(Text.translatable("fasterflight.config.title"))
+                .setTitle(TextCompat.translatable("fasterflight.config.title"))
                 .setSavingRunnable(FasterFlightConfig::save);
 
         ConfigCategory general = builder.getOrCreateCategory(
-                Text.translatable("fasterflight.config.category.general"));
+                TextCompat.translatable("fasterflight.config.category.general"));
 
         ConfigEntryBuilder entries = builder.entryBuilder();
 
         MultiplierSliderEntry multiplierEntry = new MultiplierSliderEntry(
-                Text.translatable("fasterflight.config.speedMultiplier"),
+                TextCompat.translatable("fasterflight.config.speedMultiplier"),
                 config.speedMultiplier,
                 FasterFlightConfig::setMultiplier
         );
@@ -48,27 +48,37 @@ public class ModMenuIntegration implements ModMenuApi {
         general.addEntry(multiplierEntry);
 
         general.addEntry(new ManualEntryRow(
-                Text.translatable("fasterflight.config.speedMultiplier.manual"),
+                TextCompat.translatable("fasterflight.config.speedMultiplier.manual"),
                 multiplierEntry.borrowFieldForSeparateRow(),
                 multiplierEntry::resetToDefault,
                 multiplierEntry));
 
-        // fillKeybindingField edits the same KeyBinding the Controls page uses, so the two stay in
-        // sync without any copying of values between them.
-        general.addEntry(entries.fillKeybindingField(
-                        Text.translatable("fasterflight.config.boostKey"),
-                        FasterFlightMod.getBoostKeyBinding())
+        // These rows deliberately do NOT use fillKeybindingField: that helper reflects into the
+        // private KeyBinding#boundKey field, which forces the mod to ship an access widener. An
+        // access widener is compiled to per-version intermediary names, so it would pin the jar to
+        // a single Minecraft version. Cloth's ModifierKeyCode field needs no reflection, and the
+        // value is mirrored onto the real keybind through the public KeyBinding#setBoundKey, so the
+        // Controls page and this screen stay in sync while one jar stays valid for 1.18+.
+        general.addEntry(entries.startModifierKeyCodeField(
+                        TextCompat.translatable("fasterflight.config.boostKey"),
+                        KeyBindingSync.read(FasterFlightMod.getBoostKeyBinding()))
+                .setAllowModifiers(false)
+                .setModifierSaveConsumer(value ->
+                        KeyBindingSync.apply(FasterFlightMod.getBoostKeyBinding(), value))
                 .setTooltipSupplier(() -> queuedHint("fasterflight.config.boostKey.tooltip"))
                 .build());
 
-        general.addEntry(entries.fillKeybindingField(
-                        Text.translatable("fasterflight.config.openConfigKey"),
-                        FasterFlightMod.getOpenConfigKeyBinding())
+        general.addEntry(entries.startModifierKeyCodeField(
+                        TextCompat.translatable("fasterflight.config.openConfigKey"),
+                        KeyBindingSync.read(FasterFlightMod.getOpenConfigKeyBinding()))
+                .setAllowModifiers(false)
+                .setModifierSaveConsumer(value ->
+                        KeyBindingSync.apply(FasterFlightMod.getOpenConfigKeyBinding(), value))
                 .setTooltipSupplier(() -> queuedHint("fasterflight.config.openConfigKey.tooltip"))
                 .build());
 
         general.addEntry(entries.startBooleanToggle(
-                        Text.translatable("fasterflight.config.showIndicator"),
+                        TextCompat.translatable("fasterflight.config.showIndicator"),
                         config.showSpeedIndicator)
                 .setDefaultValue(true)
                 .setTooltipSupplier(() -> queuedHint("fasterflight.config.showIndicator.tooltip"))
