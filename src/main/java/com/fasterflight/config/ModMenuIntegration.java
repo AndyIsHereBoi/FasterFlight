@@ -8,6 +8,7 @@ import me.shedaniel.clothconfig2.api.ConfigCategory;
 import me.shedaniel.clothconfig2.api.ConfigEntryBuilder;
 import me.shedaniel.clothconfig2.gui.ClothConfigScreen;
 import net.minecraft.client.gui.Element;
+import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.text.Text;
 
@@ -24,65 +25,84 @@ public class ModMenuIntegration implements ModMenuApi {
 
     @Override
     public ConfigScreenFactory<?> getModConfigScreenFactory() {
-        return parent -> {
-            FasterFlightConfig config = FasterFlightConfig.get();
+        return ModMenuIntegration::createScreen;
+    }
 
-            ConfigBuilder builder = ConfigBuilder.create()
-                    .setParentScreen(parent)
-                    .setTitle(Text.translatable("fasterflight.config.title"))
-                    .setSavingRunnable(FasterFlightConfig::save);
+    /**
+     * Builds the FasterFlight settings screen.
+     *
+     * <p>Exposed as a static method so it can also be opened from the in-game "open config" keybind,
+     * which has no ModMenu involved. Passing the current screen as {@code parent} makes the usual
+     * Cancel and Save &amp; Quit buttons return to wherever the player came from.
+     *
+     * @param parent the screen to return to when this one closes, may be null
+     * @return the built settings screen
+     */
+    public static Screen createScreen(Screen parent) {
+        FasterFlightConfig config = FasterFlightConfig.get();
 
-            ConfigCategory general = builder.getOrCreateCategory(
-                    Text.translatable("fasterflight.config.category.general"));
+        ConfigBuilder builder = ConfigBuilder.create()
+                .setParentScreen(parent)
+                .setTitle(Text.translatable("fasterflight.config.title"))
+                .setSavingRunnable(FasterFlightConfig::save);
 
-            ConfigEntryBuilder entries = builder.entryBuilder();
+        ConfigCategory general = builder.getOrCreateCategory(
+                Text.translatable("fasterflight.config.category.general"));
 
-            MultiplierSliderEntry multiplierEntry = new MultiplierSliderEntry(
-                    Text.translatable("fasterflight.config.speedMultiplier"),
-                    config.speedMultiplier,
-                    FasterFlightConfig::setMultiplier
-            );
-            // Hints are shown in a bar at the bottom of the screen instead of as floating boxes that
-            // cover the controls, so Cloth's floating tooltip is suppressed and the text queued for
-            // the bar instead.
-            multiplierEntry.setTooltipSupplier(
-                    () -> queuedHint("fasterflight.config.speedMultiplier.tooltip"));
-            general.addEntry(multiplierEntry);
+        ConfigEntryBuilder entries = builder.entryBuilder();
 
-            // Give the manual text box its own row beneath the slider, with its own reset button.
-            // The same widget instance is moved onto the new row, so both stay in step and only one
-            // of them owns the caret. Its label repeats the row above with "Manual" appended.
-            general.addEntry(new ManualEntryRow(
-                    Text.translatable("fasterflight.config.speedMultiplier.manual"),
-                    multiplierEntry.borrowFieldForSeparateRow(),
-                    multiplierEntry::resetToDefault,
-                    multiplierEntry));
+        MultiplierSliderEntry multiplierEntry = new MultiplierSliderEntry(
+                Text.translatable("fasterflight.config.speedMultiplier"),
+                config.speedMultiplier,
+                FasterFlightConfig::setMultiplier
+        );
+        // Hints are shown in a bar at the bottom of the screen instead of as floating boxes that
+        // cover the controls, so Cloth's floating tooltip is suppressed and the text queued for the
+        // bar instead.
+        multiplierEntry.setTooltipSupplier(
+                () -> queuedHint("fasterflight.config.speedMultiplier.tooltip"));
+        general.addEntry(multiplierEntry);
 
-            // fillKeybindingField binds directly to the shared KeyBinding, so edits made here are
-            // visible on the vanilla Controls page and vice versa.
-            var keyBindEntry = entries.fillKeybindingField(
-                            Text.translatable("fasterflight.config.boostKey"),
-                            FasterFlightMod.getBoostKeyBinding())
-                    .setTooltipSupplier(() -> queuedHint("fasterflight.config.boostKey.tooltip"))
-                    .build();
-            general.addEntry(keyBindEntry);
+        // Give the manual text box its own row beneath the slider, with its own reset button.
+        // The same widget instance is moved onto the new row, so both stay in step and only one
+        // of them owns the caret. Its label repeats the row above with "Manual" appended.
+        general.addEntry(new ManualEntryRow(
+                Text.translatable("fasterflight.config.speedMultiplier.manual"),
+                multiplierEntry.borrowFieldForSeparateRow(),
+                multiplierEntry::resetToDefault,
+                multiplierEntry));
 
-            var indicatorEntry = entries.startBooleanToggle(
-                            Text.translatable("fasterflight.config.showIndicator"),
-                            config.showSpeedIndicator)
-                    .setDefaultValue(true)
-                    .setTooltipSupplier(() -> queuedHint("fasterflight.config.showIndicator.tooltip"))
-                    .setSaveConsumer(newValue -> config.showSpeedIndicator = newValue)
-                    .build();
-            general.addEntry(indicatorEntry);
+        // fillKeybindingField binds directly to the shared KeyBinding, so edits made here are
+        // visible on the vanilla Controls page and vice versa.
+        var keyBindEntry = entries.fillKeybindingField(
+                        Text.translatable("fasterflight.config.boostKey"),
+                        FasterFlightMod.getBoostKeyBinding())
+                .setTooltipSupplier(() -> queuedHint("fasterflight.config.boostKey.tooltip"))
+                .build();
+        general.addEntry(keyBindEntry);
 
-            // Cloth Config has no public option for hiding the search box, and it is dead weight on a
-            // screen with only four entries. It is created as a list row, so it can be removed from
-            // the built screen's selector the same way any other row would be.
-            removeSearchField(builder);
+        var openConfigEntry = entries.fillKeybindingField(
+                        Text.translatable("fasterflight.config.openConfigKey"),
+                        FasterFlightMod.getOpenConfigKeyBinding())
+                .setTooltipSupplier(() -> queuedHint("fasterflight.config.openConfigKey.tooltip"))
+                .build();
+        general.addEntry(openConfigEntry);
 
-            return builder.build();
-        };
+        var indicatorEntry = entries.startBooleanToggle(
+                        Text.translatable("fasterflight.config.showIndicator"),
+                        config.showSpeedIndicator)
+                .setDefaultValue(true)
+                .setTooltipSupplier(() -> queuedHint("fasterflight.config.showIndicator.tooltip"))
+                .setSaveConsumer(newValue -> config.showSpeedIndicator = newValue)
+                .build();
+        general.addEntry(indicatorEntry);
+
+        // Cloth Config has no public option for hiding the search box, and it is dead weight on a
+        // screen with only four entries. It is created as a list row, so it can be removed from
+        // the built screen's selector the same way any other row would be.
+        removeSearchField(builder);
+
+        return builder.build();
     }
 
     /**

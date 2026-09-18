@@ -1,6 +1,7 @@
 package com.fasterflight;
 
 import com.fasterflight.config.FasterFlightConfig;
+import com.fasterflight.config.ModMenuIntegration;
 import com.fasterflight.hud.BoostIndicatorRenderer;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -13,28 +14,40 @@ import org.lwjgl.glfw.GLFW;
 /**
  * Client entrypoint for FasterFlight.
  *
- * <p>Registers the hold-to-boost keybind and drives the per-tick speed application. Because the
- * keybind is a normal vanilla {@link KeyBinding}, it appears on the Controls page and can be
- * changed either there or from the ModMenu screen, with both views reading the same instance.
+ * <p>Registers the hold-to-boost keybind, the keybind that opens the settings screen, and drives the
+ * per-tick speed application. Because the keybinds are normal vanilla {@link KeyBinding} instances,
+ * they appear on the Controls page and can be changed either there or from the ModMenu screen, with
+ * both views reading the same instance.
  */
 public class FasterFlightMod implements ClientModInitializer {
 
     /** Translation key for the keybind label. */
     public static final String KEY_BOOST = "key.fasterflight.boost";
 
+    /** Translation key for the keybind that opens the settings screen. */
+    public static final String KEY_OPEN_CONFIG = "key.fasterflight.openConfig";
+
     /** Translation key for the keybind category. */
     public static final String KEY_CATEGORY = "key.categories.fasterflight";
 
     /**
-     * The single shared keybind instance. Any screen that edits the key must go through
+     * The single shared boost keybind instance. Any screen that edits the key must go through
      * {@link KeyBindingHelper#getBoundKeyOf(KeyBinding)} and {@link KeyBinding#setBoundKey} on this
      * object so that the Controls page and ModMenu always agree.
      */
     private static KeyBinding boostKeyBinding;
 
+    /** The shared keybind instance that opens the settings screen. Unbound by default. */
+    private static KeyBinding openConfigKeyBinding;
+
     /** @return the shared boost keybind instance. */
     public static KeyBinding getBoostKeyBinding() {
         return boostKeyBinding;
+    }
+
+    /** @return the shared keybind instance that opens the settings screen. */
+    public static KeyBinding getOpenConfigKeyBinding() {
+        return openConfigKeyBinding;
     }
 
     @Override
@@ -48,6 +61,15 @@ public class FasterFlightMod implements ClientModInitializer {
                 KEY_CATEGORY
         ));
 
+        // Unbound by default: GLFW_KEY_UNKNOWN means the player has to assign it themselves, which
+        // avoids clashing with another mod's key out of the box.
+        openConfigKeyBinding = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                KEY_OPEN_CONFIG,
+                InputUtil.Type.KEYSYM,
+                GLFW.GLFW_KEY_UNKNOWN,
+                KEY_CATEGORY
+        ));
+
         BoostIndicatorRenderer.register();
 
         ClientTickEvents.END_CLIENT_TICK.register(FasterFlightMod::onEndTick);
@@ -55,6 +77,30 @@ public class FasterFlightMod implements ClientModInitializer {
 
     private static void onEndTick(MinecraftClient client) {
         FlightSpeedController.tick(client, isBoostKeyHeld(client));
+        handleOpenConfigKey(client);
+    }
+
+    /**
+     * Opens the settings screen when the open-config key is pressed.
+     *
+     * <p>Uses {@link KeyBinding#wasPressed()} because this is a discrete action rather than a held
+     * one, so consuming the press event is exactly what is wanted here. The key is only acted on when
+     * no other screen is open, so it cannot stack screens or fire while the player is typing.
+     *
+     * @param client the Minecraft client instance
+     */
+    private static void handleOpenConfigKey(MinecraftClient client) {
+        if (openConfigKeyBinding == null) {
+            return;
+        }
+
+        // Drain pressed events even when a screen is open, so a queued press cannot fire later.
+        boolean pressed = openConfigKeyBinding.wasPressed();
+        if (!pressed || client.currentScreen != null) {
+            return;
+        }
+
+        client.setScreen(ModMenuIntegration.createScreen(null));
     }
 
     /**

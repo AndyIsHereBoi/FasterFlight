@@ -1,6 +1,7 @@
 {
   "key.categories.fasterflight": "FasterFlight",
   "key.fasterflight.boost": "Hold to Boost Flight Speed",
+  "key.fasterflight.openConfig": "Open FasterFlight Settings",
 
   "fasterflight.config.title": "FasterFlight Settings",
   "fasterflight.config.category.general": "General",
@@ -9,6 +10,8 @@
   "fasterflight.config.speedMultiplier.tooltip": "How much faster you fly while the boost key is held. From 1.0x to 25.0x.",
   "fasterflight.config.boostKey": "Boost Key (hold)",
   "fasterflight.config.boostKey.tooltip": "Hold this key to fly at the multiplier speed. Same keybind as the Controls page.",
+  "fasterflight.config.openConfigKey": "Open Settings Key",
+  "fasterflight.config.openConfigKey.tooltip": "Opens this settings screen in game. Unbound by default; same keybind as the Controls page.",
   "fasterflight.config.showIndicator": "Show Speed Indicator",
   "fasterflight.config.showIndicator.tooltip": "Shows the active multiplier above the hotbar while boosting.",
 
