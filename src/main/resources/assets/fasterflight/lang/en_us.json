@@ -1,0 +1,16 @@
+{
+  "key.categories.fasterflight": "FasterFlight",
+  "key.fasterflight.boost": "Hold to Boost Flight Speed",
+
+  "fasterflight.config.title": "FasterFlight Settings",
+  "fasterflight.config.category.general": "General",
+  "fasterflight.config.speedMultiplier": "Flight Speed Multiplier",
+  "fasterflight.config.speedMultiplier.manual": "Flight Speed Multiplier (Manual)",
+  "fasterflight.config.speedMultiplier.tooltip": "How much faster you fly while the boost key is held. From 1.0x to 25.0x.",
+  "fasterflight.config.boostKey": "Boost Key (hold)",
+  "fasterflight.config.boostKey.tooltip": "Hold this key to fly at the multiplier speed. Same keybind as the Controls page.",
+  "fasterflight.config.showIndicator": "Show Speed Indicator",
+  "fasterflight.config.showIndicator.tooltip": "Shows the active multiplier above the hotbar while boosting.",
+
+  "fasterflight.speedIndicator": "%sx"
+}

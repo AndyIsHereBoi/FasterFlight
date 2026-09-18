@@ -1,0 +1,150 @@
+name: Draft Release
+
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number, for example 1.2.3 or v1.2.3'
+        required: true
+        type: string
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+
+      - name: Determine version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME}"
+          fi
+
+          # Remove one optional leading "v" or "V".
+          VERSION="${VERSION#v}"
+          VERSION="${VERSION#V}"
+
+          # Only allow numeric versions such as 1, 1.2, or 1.2.3.
+          if [[ ! "$VERSION" =~ ^[0-9]+([.][0-9]+)*$ ]]; then
+            echo "Invalid version: $VERSION"
+            echo "Use a numeric version such as 1.2.3"
+            exit 1
+          fi
+
+          TAG="v${VERSION}"
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+          echo "Version: ${VERSION}"
+          echo "Tag: ${TAG}"
+
+      - name: Build
+        uses: gradle/gradle-build-action@v2
+        with:
+          gradle-version: '8.5'
+          arguments: clean build --no-daemon
+
+      - name: Rename build artifacts
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          files=(build/libs/*.jar)
+
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No JAR files found in build/libs"
+            exit 1
+          fi
+
+          mkdir -p release-assets
+
+          for file in "${files[@]}"; do
+            filename="$(basename "$file")"
+            base="${filename%.jar}"
+
+            # Remove an existing trailing version from the Gradle filename.
+            base="$(printf '%s' "$base" | sed -E 's/-[0-9]+([.][0-9]+)*$//')"
+
+            output="release-assets/${base}-${VERSION}.jar"
+
+            echo "Renaming ${filename} to $(basename "$output")"
+            cp "$file" "$output"
+          done
+
+          echo "Creating checksums"
+          (
+            cd release-assets
+            sha256sum *.jar > checksums.txt
+          )
+
+      - name: Create Draft Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          draft: true
+          prerelease: ${{ contains(steps.version.outputs.version, 'rc') || contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'alpha') }}
+
+      - name: Upload release assets
+        shell: bash
+        env:
+          UPLOAD_URL: ${{ steps.create_release.outputs.upload_url }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          UPLOAD_URL="${UPLOAD_URL%\{*}"
+
+          for file in release-assets/*; do
+            echo "Uploading $(basename "$file")"
+
+            if [[ "$file" == *.jar ]]; then
+              CONTENT_TYPE="application/java-archive"
+            else
+              CONTENT_TYPE="text/plain"
+            fi
+
+            curl --fail-with-body -sS \
+              -X POST \
+              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              -H "Content-Type: ${CONTENT_TYPE}" \
+              --data-binary "@${file}" \
+              "${UPLOAD_URL}?name=$(basename "$file")"
+          done

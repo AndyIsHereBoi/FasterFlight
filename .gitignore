@@ -1,0 +1,36 @@
+# Gradle
+build/
+.gradle/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Fabric / Loom
+# The dev client's working directory. Generated at runtime and holds logs, worlds, saved configs
+# and downloaded mods, none of which belong in version control.
+run/
+remappedSrc/
+.loom-cache/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.classpath
+.project
+.settings/
+bin/
+.vscode/*
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/extensions.json
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs and crash reports
+*.log
+hs_err_pid*
+replay_pid*

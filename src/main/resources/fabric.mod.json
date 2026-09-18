@@ -1,0 +1,31 @@
+{
+    "schemaVersion": 1,
+    "id": "fasterflight",
+    "version": "${version}",
+    "name": "FasterFlight",
+    "description": "Hold a configurable key to multiply your flight speed. The multiplier is adjustable from 1.0x to 25.0x via a ModMenu slider or a manual text box. Works in any gamemode that already allows flying.",
+    "authors": [
+        "You"
+    ],
+    "contact": {},
+    "license": "MIT",
+    "environment": "client",
+    "accessWidener": "fasterflight.accesswidener",
+    "entrypoints": {
+        "client": [
+            "com.fasterflight.FasterFlightMod"
+        ],
+        "modmenu": [
+            "com.fasterflight.config.ModMenuIntegration"
+        ]
+    },
+    "depends": {
+        "fabricloader": ">=0.14.0",
+        "fabric": "*",
+        "minecraft": ">=1.18 <1.21",
+        "cloth-config": ">=8.0.0"
+    },
+    "recommends": {
+        "modmenu": ">=4.0.0"
+    }
+}

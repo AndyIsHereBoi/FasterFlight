@@ -1,0 +1,9 @@
+accessWidener	v2	named
+
+# Cloth Config's ConfigEntryBuilder#fillKeybindingField reads and writes
+# net.minecraft.client.option.KeyBinding#boundKey reflectively to render and edit a keybind row.
+# Without this widener the screen throws IllegalAccessError as soon as it is opened, because the
+# field is private in vanilla. Widening it to accessible keeps the keybind row working and, because
+# it operates on the same KeyBinding instance registered by FasterFlightMod, keeps the ModMenu row
+# and the vanilla Controls page showing the same key.
+accessible	field	net/minecraft/client/option/KeyBinding	boundKey	Lnet/minecraft/client/util/InputUtil$Key;

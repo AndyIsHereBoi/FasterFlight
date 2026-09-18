@@ -1,0 +1,75 @@
+plugins {
+    id 'fabric-loom' version '1.5-SNAPSHOT'
+    id 'maven-publish'
+}
+
+version = project.mod_version
+group = project.maven_group
+
+// Needed so Cloth Config's keybind entry can reach KeyBinding#boundKey.
+loom {
+    accessWidenerPath = file("src/main/resources/fasterflight.accesswidener")
+}
+
+repositories {
+    // ModMenu
+    maven {
+        name = 'TerraformersMC'
+        url = 'https://maven.terraformersmc.com/releases/'
+    }
+    // Cloth Config
+    maven {
+        name = 'Shedaniel'
+        url = 'https://maven.shedaniel.me/'
+    }
+}
+
+dependencies {
+    // To change the versions see the gradle.properties file
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    // Fabric API for client-side events, keybinds and HUD rendering
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+
+    // Cloth Config - required at runtime for the settings screen.
+    // Its transitive fabric-loader dependency is excluded because it pins an older loader (0.14.8)
+    // which Loom would otherwise remap as a second loader jar on the runtime classpath and clash
+    // with the loader version declared in gradle.properties. The loader is supplied by Loom itself.
+    modApi("me.shedaniel.cloth:cloth-config-fabric:${project.cloth_config_version}") {
+        exclude(group: "net.fabricmc.fabric-api")
+        exclude(group: "net.fabricmc", module: "fabric-loader")
+    }
+
+    // Declared explicitly so me.shedaniel.math.Point (used by Cloth's Tooltip API) resolves on the
+    // compile classpath. It already arrives transitively via Cloth Config; this just names it so the
+    // dependency is not relying on that remaining true.
+    compileOnly "me.shedaniel.cloth:basic-math:0.6.1"
+
+    modCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
+}
+
+processResources {
+    inputs.property "version", project.version
+
+    filesMatching("fabric.mod.json") {
+        expand "version": project.version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = 17
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+
+    withSourcesJar()
+}
+
+jar {
+    from("LICENSE") {
+        rename { "${it}_${project.archives_base_name}" }
+    }
+}
