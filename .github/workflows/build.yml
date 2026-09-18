@@ -1,6 +1,9 @@
 name: Build
 
 on:
+  # Every branch, so a commit is verified wherever it lands rather than only once merged to main.
+  push:
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -33,6 +36,8 @@ jobs:
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: fasterflight-${{ github.ref_name }}
+          # head_ref is the source branch on a pull_request and empty on a push, where ref_name is
+          # the branch itself. Falling back to ref_name covers both without duplicating the step.
+          name: fasterflight-${{ github.head_ref || github.ref_name }}
           path: build/libs/*.jar
           if-no-files-found: error

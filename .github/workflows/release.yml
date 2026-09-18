@@ -4,10 +4,9 @@ permissions:
   contents: write
 
 on:
-  push:
-    tags:
-      - 'v*'
-
+  # Manual only. This workflow creates a tag as part of releasing, so a tag-push trigger would
+  # re-run it immediately on the tag it just created, duplicating the release and then failing on
+  # the version already existing.
   workflow_dispatch:
     inputs:
       version:
@@ -38,14 +37,16 @@ jobs:
       - name: Determine version
         id: version
         shell: bash
+        env:
+          # Passed via env rather than interpolated into the script, so a crafted input cannot
+          # inject shell commands.
+          INPUT_VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
 
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            VERSION="${{ inputs.version }}"
-          else
-            VERSION="${GITHUB_REF_NAME}"
-          fi
+          VERSION="$INPUT_VERSION"
 
           # Remove one optional leading "v" or "V".
           VERSION="${VERSION#v}"
@@ -59,6 +60,14 @@ jobs:
           fi
 
           TAG="v${VERSION}"
+
+          # Fail early and clearly if the tag already exists. Without this the run proceeds, then
+          # fails later in the release step with a less obvious error.
+          if gh api "repos/${REPO}/git/ref/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Tag ${TAG} already exists."
+            echo "Re-run only after deleting it, or choose a new version."
+            exit 1
+          fi
 
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
