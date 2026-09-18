@@ -91,11 +91,16 @@ public class MultiplierSliderEntry extends IntegerSliderEntry {
     private void captureSliderGeometry(int rowX, int rowWidth) {
         Object widget = this.sliderWidget;
         if (widget instanceof ClickableWidget clickable) {
-            this.sliderLeft = WidgetCompat.getX(clickable);
-            this.sliderWidth = clickable.getWidth();
-            return;
+            int left = WidgetCompat.getX(clickable);
+            if (left != WidgetCompat.UNKNOWN) {
+                this.sliderLeft = left;
+                this.sliderWidth = clickable.getWidth();
+                return;
+            }
         }
 
+        // Fall back to the row box Cloth handed us. Alignment is slightly looser, but the row still
+        // draws and the value is still editable, which matters far more than pixel-perfect matching.
         this.sliderLeft = rowX;
         this.sliderWidth = Math.max(SLIDER_WIDTH, rowWidth);
     }
@@ -148,8 +153,10 @@ public class MultiplierSliderEntry extends IntegerSliderEntry {
         // with ManualEntryRow documents that this row must never resize the field while it is focused.
         int targetX = x + SLIDER_WIDTH + WIDGET_GAP;
         int targetY = y + 1;
-        if (WidgetCompat.getX(this.multiplierField) != targetX
-                || WidgetCompat.getY(this.multiplierField) != targetY) {
+        int fieldX = WidgetCompat.getX(this.multiplierField);
+        int fieldY = WidgetCompat.getY(this.multiplierField);
+        if (fieldX == WidgetCompat.UNKNOWN || fieldY == WidgetCompat.UNKNOWN
+                || fieldX != targetX || fieldY != targetY) {
             WidgetCompat.setPosition(this.multiplierField, targetX, targetY);
         }
         this.multiplierField.setEditable(isEditable());

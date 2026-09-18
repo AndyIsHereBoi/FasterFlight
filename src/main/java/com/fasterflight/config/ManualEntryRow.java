@@ -77,7 +77,10 @@ public class ManualEntryRow extends AbstractConfigListEntry<Object> {
         }
         int targetX = this.sliderRow.getSliderLeft();
         int targetY = y + 1;
-        if (WidgetCompat.getX(this.field) != targetX || WidgetCompat.getY(this.field) != targetY) {
+        int fieldX = WidgetCompat.getX(this.field);
+        int fieldY = WidgetCompat.getY(this.field);
+        if (fieldX == WidgetCompat.UNKNOWN || fieldY == WidgetCompat.UNKNOWN
+                || fieldX != targetX || fieldY != targetY) {
             WidgetCompat.setPosition(this.field, targetX, targetY);
         }
         this.field.setEditable(isEditable());

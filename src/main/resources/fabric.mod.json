@@ -10,6 +10,7 @@
     "contact": {},
     "license": "MIT",
     "environment": "client",
+    "icon": "assets/fasterflight/icon.png",
     "entrypoints": {
         "client": [
             "com.fasterflight.FasterFlightMod"
