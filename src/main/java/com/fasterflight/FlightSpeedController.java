@@ -8,42 +8,29 @@ import net.minecraft.entity.player.PlayerAbilities;
 /**
  * Applies and restores the flight speed multiplier on the local player.
  *
- * <p>Only {@link PlayerAbilities#getFlySpeed()} is touched. Vanilla derives both horizontal and
- * vertical flight movement from that single value, so scaling it also scales ascent and descent
- * without any extra velocity manipulation.
- *
- * <p>Nothing here is ever transmitted to the server: {@code abilities.flying} is left alone and no
- * ability packet is constructed. The client simply moves faster, and a server that rejects the
- * resulting position will correct it as it would any other movement.
+ * <p>Only {@link PlayerAbilities#getFlySpeed()} is touched, which vanilla uses for both horizontal
+ * and vertical flight, so ascent and descent scale without extra velocity manipulation. Nothing is
+ * sent to the server, and {@code abilities.flying} is left alone.
  */
 public final class FlightSpeedController {
 
-    /** Vanilla's default flight speed, used only as a fallback if no base has been captured yet. */
     private static final float FALLBACK_BASE_FLY_SPEED = 0.05F;
 
     /**
-     * The player's unmodified flight speed, captured before any multiplier is applied.
-     * Snapshotted rather than hard-coded so other mods that legitimately change flight speed
-     * are respected and correctly restored.
+     * The player's unmodified flight speed. Snapshotted rather than hard-coded so a speed set by
+     * another mod is restored correctly.
      */
     private static Float baseFlySpeed = null;
 
-    /** Whether the multiplier is currently applied, so the base is only restored once. */
     private static boolean boosted = false;
 
     private FlightSpeedController() {
     }
 
-    /**
-     * Runs once per client tick.
-     *
-     * @param client       the Minecraft client instance
-     * @param boostHeld    whether the hold-to-boost keybind is currently down
-     */
     public static void tick(MinecraftClient client, boolean boostHeld) {
         ClientPlayerEntity player = client.player;
         if (player == null) {
-            // Left the world; forget the snapshot so the next world captures a fresh base.
+            // Left the world, so the next world captures a fresh base.
             reset();
             return;
         }
@@ -56,22 +43,18 @@ public final class FlightSpeedController {
         }
 
         if (baseFlySpeed == null) {
-            // First boost of this world: remember the speed vanilla (or another mod) had set.
             baseFlySpeed = abilities.getFlySpeed();
         }
 
-        double multiplier = FasterFlightConfig.getMultiplier();
-        // Re-asserted every tick so a server-sent abilities packet cannot silently cancel the boost.
-        abilities.setFlySpeed((float) (baseFlySpeed * multiplier));
+        // Re-asserted every tick because a server-sent abilities packet would otherwise cancel it.
+        abilities.setFlySpeed((float) (baseFlySpeed * FasterFlightConfig.getMultiplier()));
         boosted = true;
     }
 
-    /** @return whether the multiplier is currently applied, for the HUD indicator. */
     public static boolean isBoosting() {
         return boosted;
     }
 
-    /** Restores the captured base flight speed if a boost is active. */
     private static void restore(PlayerAbilities abilities) {
         if (boosted) {
             abilities.setFlySpeed(baseFlySpeed != null ? baseFlySpeed : FALLBACK_BASE_FLY_SPEED);
@@ -79,7 +62,7 @@ public final class FlightSpeedController {
         }
     }
 
-    /** Clears all captured state. Called when the player leaves the world. */
+    /** Called when the player leaves the world. */
     public static void reset() {
         baseFlySpeed = null;
         boosted = false;

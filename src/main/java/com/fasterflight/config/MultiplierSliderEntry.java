@@ -14,66 +14,36 @@ import java.util.List;
 import java.util.function.DoubleConsumer;
 
 /**
- * A Cloth Config entry that pairs an integer slider with a manual-entry text box.
+ * A Cloth Config entry pairing an integer slider with a manual-entry text box, which Cloth has no
+ * built-in equivalent for. The two stay in step: dragging the slider reformats the box, and
+ * committing the box (Enter, or clicking away) moves the slider and persists the value.
  *
- * <p>Cloth Config has no built-in entry that keeps a slider and a free-text field in step, so this
- * wraps an {@link IntegerSliderEntry} and adds a {@link TextFieldWidget}. The two stay synchronised
- * in both directions: dragging the slider reformats the text box, and committing the text box
- * (Enter, or clicking away) moves the slider and persists the new value.
+ * <p>Values are stored as whole slider steps divided by {@link #SLIDER_SCALE}, giving the required
+ * 0.1 resolution.
  *
- * <p>Cloth's slider widget is integer-based, so values are stored as whole slider steps. The
- * displayed multiplier is that integer divided by {@link #SLIDER_SCALE}, which gives the required
- * 0.1 resolution across the supported 1.0x to 25.0x range.
- *
- * <p>The text box can optionally be handed to a different screen row via
- * {@link #borrowFieldForSeparateRow()}; when that happens this entry stops rendering and
- * hit-testing the widget so the two rows do not fight over it.
+ * <p>The text box can be handed to another row via {@link #borrowFieldForSeparateRow()}, after which
+ * this entry stops drawing and hit-testing it.
  */
 public class MultiplierSliderEntry extends IntegerSliderEntry {
 
-    /** Slider steps per 1.0x of multiplier. Ten steps yields the required 0.1 granularity. */
+    /** Slider steps per 1.0x of multiplier. */
     public static final int SLIDER_SCALE = 10;
 
-    /** Slider width, matching Cloth Config's own default so the row keeps a familiar shape. */
     private static final int SLIDER_WIDTH = 118;
-
-    /** Text box width; enough for "25.0" with a little padding. */
     private static final int FIELD_WIDTH = 42;
-
-    /** Height shared by the slider and the text box. */
     private static final int WIDGET_HEIGHT = 20;
-
-    /** Horizontal gap between the slider and the text box. */
     private static final int WIDGET_GAP = 4;
 
     private final TextFieldWidget multiplierField;
 
-    /**
-     * Left edge of the slider as of the last render, for the row beneath to align to.
-     *
-     * <p>The slider is an inaccessible inner class, so its position cannot be read directly; it is
-     * captured while this row draws instead, which is reliable because the row that consumes the
-     * value sits directly below this one and renders straight after it.
-     */
     private int sliderLeft = 0;
-
-    /** Width of the slider as of the last render, for the row beneath to align to. */
     private int sliderWidth = SLIDER_WIDTH;
 
-    /** Tracks focus so a commit fires on the frame the field loses focus. */
     private boolean fieldWasFocused = false;
 
-    /**
-     * When true the text box is rendered by a separate screen row instead of beside the slider, so
-     * this entry must not draw or hit-test it.
-     */
+    /** Set while the text box is drawn by another row, which then owns it. */
     private boolean fieldInSeparateRow = false;
 
-    /**
-     * @param fieldName      the label shown to the left of the slider row
-     * @param value          the initial multiplier, in real units rather than slider steps
-     * @param onValueChanged called with the new multiplier whenever the value is committed
-     */
     public MultiplierSliderEntry(Text fieldName, double value, DoubleConsumer onValueChanged) {
         super(
                 fieldName,
@@ -96,8 +66,7 @@ public class MultiplierSliderEntry extends IntegerSliderEntry {
             public boolean mouseClicked(double mouseX, double mouseY, int button) {
                 boolean handled = super.mouseClicked(mouseX, mouseY, button);
                 if (handled && button == 1) {
-                    // Right click clears the box so a new value can be typed straight away, matching
-                    // how vanilla text fields behave.
+                    // Right click clears the box, matching how vanilla text fields behave.
                     setText("");
                 }
                 return handled;
@@ -105,30 +74,23 @@ public class MultiplierSliderEntry extends IntegerSliderEntry {
         };
         this.multiplierField.setMaxLength(6);
         this.multiplierField.setText(MultiplierFormat.format(value));
-        // Restricts typing to characters a decimal multiplier can legitimately contain. Two digits
-        // before the separator keeps the 25x maximum reachable.
+        // Two digits before the separator keeps the 25x maximum reachable.
         this.multiplierField.setTextPredicate(text -> text.isEmpty() || text.matches("\\d{0,2}([.,]\\d?)?x?"));
-        // Deliberately no changed listener. Reacting to each keystroke would rewrite the text box
-        // mid-edit, which makes deleting digits impossible because the rewritten text puts the
-        // character straight back. Typed values are applied on commit instead.
+        // No changed listener on purpose: reacting to each keystroke would rewrite the box mid-edit,
+        // making it impossible to delete a digit because the rewritten text puts it straight back.
     }
 
-    /** @return the text box widget. */
     public TextFieldWidget getMultiplierField() {
         return this.multiplierField;
     }
 
     /**
-     * Records the slider's on-screen box so the row beneath can match it exactly.
+     * Records the slider's on-screen box for the row beneath to match.
      *
-     * <p>The slider's declared type is a private inner class, so {@code getX()} and {@code getWidth()}
-     * are not visible at compile time. Its runtime type extends {@code ClickableWidget}, whose {@code x}
-     * field and {@code getWidth()} method are public, so the box is read through that supertype. Cloth
-     * sizes the label column from the longest field name rather than a constant, which is why the
-     * values are read from the laid-out widget instead of being recomputed.
-     *
-     * @param rowX        the row's left edge, used as a fallback
-     * @param rowWidth    the row's width, used as a fallback
+     * <p>The slider's declared type is a private inner class, so its position is read through
+     * {@link ClickableWidget}, whose {@code x} field and {@code getWidth()} are public. Reading the
+     * laid-out widget is necessary because Cloth sizes the label column from the longest field name
+     * rather than a constant, so recomputing it would drift as the window resizes.
      */
     private void captureSliderGeometry(int rowX, int rowWidth) {
         Object widget = this.sliderWidget;
@@ -138,14 +100,11 @@ public class MultiplierSliderEntry extends IntegerSliderEntry {
             return;
         }
 
-        // Should not happen, but keeps the row beneath sane rather than collapsing it.
         this.sliderLeft = rowX;
         this.sliderWidth = Math.max(SLIDER_WIDTH, rowWidth);
     }
 
-    /**
-     * @return the slider's left edge as recorded during this row's last render.
-     */
+    /** @return the slider's left edge as recorded during this row's last render. */
     public int getSliderLeft() {
         return this.sliderLeft;
     }
@@ -155,22 +114,15 @@ public class MultiplierSliderEntry extends IntegerSliderEntry {
         return this.sliderWidth;
     }
 
-    /**
-     * @return the width Cloth gave this row's own reset button, so a companion row can match it.
-     *         Falls back to the standard button width if the widget is not available.
-     */
+    /** @return this row's reset button width, so a companion row can match it. */
     public int getResetButtonWidth() {
         ButtonWidget button = this.resetButton;
         return button != null ? button.getWidth() : 60;
     }
 
     /**
-     * Hands the text box to a separate screen row so it can appear on its own line.
-     *
-     * <p>The widget instance is reused rather than duplicated, so the slider and the standalone row
-     * always show the same value.
-     *
-     * @return the text box widget, for the borrowing entry to host
+     * Hands the text box to another row so it can appear on its own line. The same instance is
+     * returned rather than a copy, so both rows share one value, caret and focus state.
      */
     public TextFieldWidget borrowFieldForSeparateRow() {
         this.fieldInSeparateRow = true;
@@ -187,11 +139,9 @@ public class MultiplierSliderEntry extends IntegerSliderEntry {
         commitIfFocusJustLost();
 
         if (this.fieldInSeparateRow) {
-            // Another row owns the text box; drawing it here as well would double-render it.
             return;
         }
 
-        // Place the text box immediately to the right of the slider, which Cloth positions itself.
         this.multiplierField.x = x + SLIDER_WIDTH + WIDGET_GAP;
         this.multiplierField.y = y + 1;
         this.multiplierField.setEditable(isEditable());
@@ -206,7 +156,7 @@ public class MultiplierSliderEntry extends IntegerSliderEntry {
                 return true;
             }
         }
-        // A click anywhere else counts as "done editing" and commits whatever is currently typed.
+        // A click anywhere else counts as finishing the edit, so the typed value is applied.
         if (this.fieldWasFocused) {
             commitField();
         }
@@ -243,11 +193,7 @@ public class MultiplierSliderEntry extends IntegerSliderEntry {
         return children;
     }
 
-    /**
-     * Commits the text box on the frame it stops being focused.
-     *
-     * <p>Cloth Config exposes no focus-change callback, so the transition is observed during render.
-     */
+    /** Cloth exposes no focus-change callback, so the transition is observed during render. */
     private void commitIfFocusJustLost() {
         boolean focusedNow = this.multiplierField.isFocused();
         if (this.fieldWasFocused && !focusedNow) {
@@ -256,13 +202,7 @@ public class MultiplierSliderEntry extends IntegerSliderEntry {
         this.fieldWasFocused = focusedNow;
     }
 
-    /**
-     * Reads the text box and applies it.
-     *
-     * <p>A value that parses is clamped, snapped to the step size and written through to the config.
-     * Unparseable text, including an empty box, is reverted to the current value so the field can
-     * never be left in an invalid state.
-     */
+    /** Unparseable text, including an empty box, reverts to the current value. */
     private void commitField() {
         MultiplierFormat.parse(this.multiplierField.getText()).ifPresentOrElse(
                 parsed -> {
@@ -274,37 +214,26 @@ public class MultiplierSliderEntry extends IntegerSliderEntry {
     }
 
     /**
-     * Writes a value into the slider and persists it.
-     *
-     * <p>{@code IntegerSliderEntry#setValue} is deprecated but remains the only supported way to push
-     * a value in from outside, so the deprecation is suppressed here.
+     * {@code IntegerSliderEntry#setValue} is deprecated but is the only way to push a value in from
+     * outside, and Cloth otherwise only writes to the config when the screen closes.
      */
     @SuppressWarnings("deprecation")
     private void applySliderValue(int sliderValue) {
         setValue(sliderValue);
         this.multiplierField.setText(MultiplierFormat.format(fromSlider(sliderValue)));
-        // Cloth only pushes values into the config when the screen is saved, so invoking the entry's
-        // save callback keeps the JSON file in step with the GUI straight away.
         save();
     }
 
-    /**
-     * Restores the multiplier to its 1.0x default and persists it.
-     *
-     * <p>Exposed so the manual-entry row's reset button can reuse the same code path as the slider's
-     * own reset button.
-     */
+    /** Shared by the slider's own reset button and the companion row's. */
     public void resetToDefault() {
         applySliderValue(toSlider(1.0D));
         this.multiplierField.setText(MultiplierFormat.format(1.0D));
     }
 
-    /** Converts a real multiplier to slider steps. */
     private static int toSlider(double multiplier) {
         return (int) Math.round(FasterFlightConfig.clamp(multiplier) * SLIDER_SCALE);
     }
 
-    /** Converts slider steps back to a real multiplier. */
     private static double fromSlider(int sliderValue) {
         return FasterFlightConfig.clamp(sliderValue / (double) SLIDER_SCALE);
     }
