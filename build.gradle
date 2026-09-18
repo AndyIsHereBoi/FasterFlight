@@ -46,7 +46,17 @@ dependencies {
     // dependency is not relying on that remaining true.
     compileOnly "me.shedaniel.cloth:basic-math:0.6.1"
 
+    // ModMenu - compile-only, plus a local runtime copy so the "Configure" button is testable in
+    // the dev client. ModMenu is listed under "recommends" in fabric.mod.json rather than "depends",
+    // so it is never required at runtime: the mod was verified to load and run without it.
+    // Its transitive fabric-loader dependency is excluded because ModMenu pins an older loader
+    // (0.14.8). Left in place, Loom remaps that as a second loader jar onto the runtime classpath,
+    // which clashes with the loader version in gradle.properties and crashes at launch.
+    // The loader is supplied by Loom itself.
     modCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
+    modLocalRuntime("com.terraformersmc:modmenu:${project.modmenu_version}") {
+        exclude(group: "net.fabricmc", module: "fabric-loader")
+    }
 }
 
 processResources {
