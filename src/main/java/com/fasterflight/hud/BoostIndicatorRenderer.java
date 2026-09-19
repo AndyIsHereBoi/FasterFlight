@@ -2,20 +2,29 @@ package com.fasterflight.hud;
 
 import com.fasterflight.FlightSpeedController;
 import com.fasterflight.config.FasterFlightConfig;
-import com.fasterflight.config.TextCompat;
-import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawableHelper;
-import net.minecraft.client.util.math.MatrixStack;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+import net.minecraft.client.DeltaTracker;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Locale;
+
 /**
  * Draws the active multiplier just above the hotbar while the boost is being applied.
+ *
+ * <p>Registered through {@link HudElementRegistry} rather than the old {@code HudRenderCallback},
+ * which no longer exists in this Minecraft version.
  */
 public final class BoostIndicatorRenderer {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("fasterflight");
+
+    private static final Identifier ELEMENT_ID =
+            Identifier.fromNamespaceAndPath("fasterflight", "boost_indicator");
 
     private static final int HOTBAR_CLEARANCE = 55;
     private static final int TEXT_COLOR = 0xFFFFC24A;
@@ -24,16 +33,16 @@ public final class BoostIndicatorRenderer {
     }
 
     public static void register() {
-        HudRenderCallback.EVENT.register(BoostIndicatorRenderer::onRenderHud);
+        HudElementRegistry.addLast(ELEMENT_ID, BoostIndicatorRenderer::extractRenderState);
     }
 
-    private static void onRenderHud(MatrixStack matrices, float tickDelta) {
+    private static void extractRenderState(GuiGraphicsExtractor extractor, DeltaTracker delta) {
         if (!FlightSpeedController.isBoosting() || !FasterFlightConfig.get().showSpeedIndicator) {
             return;
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player == null || client.options.hudHidden) {
+        Minecraft client = Minecraft.getInstance();
+        if (client.player == null || client.options.hideGui) {
             return;
         }
 
@@ -41,17 +50,16 @@ public final class BoostIndicatorRenderer {
         // overlay must never be able to take the game down, so any failure here is swallowed and
         // simply skips drawing for that frame rather than propagating into the render loop.
         try {
-            String label = String.format(java.util.Locale.ROOT, "%.1fx", FasterFlightConfig.getMultiplier());
+            String label = String.format(Locale.ROOT, "%.1fx", FasterFlightConfig.getMultiplier());
 
-            int screenWidth = client.getWindow().getScaledWidth();
-            int screenHeight = client.getWindow().getScaledHeight();
-            int textWidth = client.textRenderer.getWidth(label);
+            int screenWidth = client.getWindow().getGuiScaledWidth();
+            int screenHeight = client.getWindow().getGuiScaledHeight();
+            int textWidth = client.font.width(label);
 
             int x = (screenWidth - textWidth) / 2;
             int y = screenHeight - HOTBAR_CLEARANCE;
 
-            DrawableHelper.drawTextWithShadow(
-                    matrices, client.textRenderer, TextCompat.literal(label), x, y, TEXT_COLOR);
+            extractor.text(client.font, Component.literal(label), x, y, TEXT_COLOR, true);
         } catch (RuntimeException e) {
             // Logged once per distinct failure rather than every frame, so a persistent problem
             // does not flood the log.

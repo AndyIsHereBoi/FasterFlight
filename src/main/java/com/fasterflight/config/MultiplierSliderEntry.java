@@ -1,17 +1,19 @@
 package com.fasterflight.config;
 
 import me.shedaniel.clothconfig2.gui.entries.IntegerSliderEntry;
-import net.minecraft.client.gui.Element;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.ClickableWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.text.Text;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.AbstractWidget;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.events.GuiEventListener;
+import net.minecraft.client.input.CharacterEvent;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.DoubleConsumer;
+import java.util.function.Consumer;
 
 /**
  * A Cloth Config entry pairing an integer slider with a manual-entry text box, which Cloth has no
@@ -34,7 +36,7 @@ public class MultiplierSliderEntry extends IntegerSliderEntry {
     private static final int WIDGET_HEIGHT = 20;
     private static final int WIDGET_GAP = 4;
 
-    private final TextFieldWidget multiplierField;
+    private final EditBox multiplierField;
 
     private int sliderLeft = 0;
     private int sliderWidth = SLIDER_WIDTH;
@@ -44,65 +46,48 @@ public class MultiplierSliderEntry extends IntegerSliderEntry {
     /** Set while the text box is drawn by another row, which then owns it. */
     private boolean fieldInSeparateRow = false;
 
-    public MultiplierSliderEntry(Text fieldName, double value, DoubleConsumer onValueChanged) {
+    public MultiplierSliderEntry(Component fieldName, double value, Consumer<Double> onValueChanged) {
         super(
                 fieldName,
                 toSlider(FasterFlightConfig.MIN_MULTIPLIER),
                 toSlider(FasterFlightConfig.MAX_MULTIPLIER),
                 toSlider(value),
-                TextCompat.translatable("text.cloth-config.reset_value"),
+                Component.translatable("text.cloth-config.reset_value"),
                 () -> toSlider(1.0D),
                 sliderValue -> onValueChanged.accept(fromSlider(sliderValue))
         );
 
-        setTextGetter(sliderValue -> MultiplierFormat.toText(fromSlider(sliderValue)));
+        setTextGetter(sliderValue -> MultiplierFormat.toComponent(fromSlider(sliderValue)));
 
-        this.multiplierField = new TextFieldWidget(
+        this.multiplierField = new EditBox(
                 MultiplierFormat.font(),
                 0, 0, FIELD_WIDTH, WIDGET_HEIGHT,
-                TextCompat.translatable("fasterflight.config.speedMultiplier")
-        ) {
-            @Override
-            public boolean mouseClicked(double mouseX, double mouseY, int button) {
-                boolean handled = super.mouseClicked(mouseX, mouseY, button);
-                if (handled && button == 1) {
-                    // Right click clears the box, matching how vanilla text fields behave.
-                    setText("");
-                }
-                return handled;
-            }
-        };
+                Component.translatable("fasterflight.config.speedMultiplier")
+        );
         this.multiplierField.setMaxLength(6);
-        this.multiplierField.setText(MultiplierFormat.format(value));
-        // Two digits before the separator keeps the 25x maximum reachable.
-        this.multiplierField.setTextPredicate(text -> text.isEmpty() || text.matches("\\d{0,2}([.,]\\d?)?x?"));
-        // No changed listener on purpose: reacting to each keystroke would rewrite the box mid-edit,
+        this.multiplierField.setValue(MultiplierFormat.format(value));
+        // No change listener on purpose: reacting to each keystroke would rewrite the box mid-edit,
         // making it impossible to delete a digit because the rewritten text puts it straight back.
+        //
+        // This version of EditBox has no text-filter API at all (setTextPredicate/setFilter are
+        // both gone), so illegal characters are no longer rejected as they are typed. That is safe
+        // because commitField() validates and reverts anything that does not parse.
     }
 
     /**
      * Records the slider's on-screen box for the row beneath to match.
      *
-     * <p>The slider's declared type is a private inner class, so its position is read through
-     * {@link ClickableWidget}, whose {@code x} field and {@code getWidth()} are public. Reading the
-     * laid-out widget is necessary because Cloth sizes the label column from the longest field name
-     * rather than a constant, so recomputing it would drift as the window resizes.
+     * <p>Reading the laid-out widget is necessary because Cloth sizes the label column from the
+     * longest field name rather than a constant, so recomputing it would drift as the window
+     * resizes. The widget's position is public on this version, so no reflection is involved.
      */
-    private void captureSliderGeometry(int rowX, int rowWidth) {
-        Object widget = this.sliderWidget;
-        if (widget instanceof ClickableWidget clickable) {
-            int left = WidgetCompat.getX(clickable);
-            if (left != WidgetCompat.UNKNOWN) {
-                this.sliderLeft = left;
-                this.sliderWidth = clickable.getWidth();
-                return;
-            }
-        }
-
-        // Fall back to the row box Cloth handed us. Alignment is slightly looser, but the row still
-        // draws and the value is still editable, which matters far more than pixel-perfect matching.
-        this.sliderLeft = rowX;
-        this.sliderWidth = Math.max(SLIDER_WIDTH, rowWidth);
+    private void captureSliderGeometry() {
+        // The slider's concrete type is package-private inside Cloth, so it is read through the
+        // public AbstractWidget supertype. Its geometry accessors are public on this version, which
+        // is why no reflection is needed here any more.
+        AbstractWidget slider = (AbstractWidget) this.sliderWidget;
+        this.sliderLeft = slider.getX();
+        this.sliderWidth = Math.max(SLIDER_WIDTH, slider.getWidth());
     }
 
     /** @return the slider's left edge as recorded during this row's last render. */
@@ -117,25 +102,24 @@ public class MultiplierSliderEntry extends IntegerSliderEntry {
 
     /** @return this row's reset button width, so a companion row can match it. */
     public int getResetButtonWidth() {
-        ButtonWidget button = this.resetButton;
-        return button != null ? button.getWidth() : 60;
+        return this.resetButton != null ? this.resetButton.getWidth() : 60;
     }
 
     /**
      * Hands the text box to another row so it can appear on its own line. The same instance is
      * returned rather than a copy, so both rows share one value, caret and focus state.
      */
-    public TextFieldWidget borrowFieldForSeparateRow() {
+    public EditBox borrowFieldForSeparateRow() {
         this.fieldInSeparateRow = true;
         return this.multiplierField;
     }
 
     @Override
-    public void render(MatrixStack matrices, int index, int y, int x, int entryWidth, int entryHeight,
-                       int mouseX, int mouseY, boolean isHovered, float delta) {
-        super.render(matrices, index, y, x, entryWidth, entryHeight, mouseX, mouseY, isHovered, delta);
+    public void extractRenderState(GuiGraphicsExtractor extractor, int index, int y, int x, int entryWidth,
+                                   int entryHeight, int mouseX, int mouseY, boolean isHovered, float delta) {
+        super.extractRenderState(extractor, index, y, x, entryWidth, entryHeight, mouseX, mouseY, isHovered, delta);
 
-        captureSliderGeometry(x, entryWidth);
+        captureSliderGeometry();
 
         commitIfFocusJustLost();
 
@@ -149,59 +133,52 @@ public class MultiplierSliderEntry extends IntegerSliderEntry {
             return;
         }
 
-        // Only reposition on change. Assigning position is harmless, but keeping this symmetrical
-        // with ManualEntryRow documents that this row must never resize the field while it is focused.
-        int targetX = x + SLIDER_WIDTH + WIDGET_GAP;
-        int targetY = y + 1;
-        int fieldX = WidgetCompat.getX(this.multiplierField);
-        int fieldY = WidgetCompat.getY(this.multiplierField);
-        if (fieldX == WidgetCompat.UNKNOWN || fieldY == WidgetCompat.UNKNOWN
-                || fieldX != targetX || fieldY != targetY) {
-            WidgetCompat.setPosition(this.multiplierField, targetX, targetY);
-        }
+        // Position is written every frame here because the row's x changes with the window size.
+        // The field's own visible text is never rewritten unless the value changed, so this does not
+        // fight the caret while typing.
+        this.multiplierField.setX(x + SLIDER_WIDTH + WIDGET_GAP);
+        this.multiplierField.setY(y + 1);
         this.multiplierField.setEditable(isEditable());
-        this.multiplierField.render(matrices, mouseX, mouseY, delta);
+        this.multiplierField.extractRenderState(extractor, mouseX, mouseY, delta);
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (!this.fieldInSeparateRow) {
-            boolean fieldHandled = this.multiplierField.mouseClicked(mouseX, mouseY, button);
-            if (fieldHandled) {
-                return true;
-            }
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+        if (!this.fieldInSeparateRow && this.multiplierField.mouseClicked(event, doubleClick)) {
+            return true;
         }
         // A click anywhere else counts as finishing the edit, so the typed value is applied.
         if (this.fieldWasFocused) {
             commitField();
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        return super.mouseClicked(event, doubleClick);
     }
 
     @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+    public boolean keyPressed(KeyEvent event) {
         if (this.multiplierField.isFocused()) {
+            int keyCode = event.key();
             if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
                 commitField();
-                this.multiplierField.setTextFieldFocused(false);
+                this.multiplierField.setFocused(false);
                 return true;
             }
-            return this.multiplierField.keyPressed(keyCode, scanCode, modifiers);
+            return this.multiplierField.keyPressed(event);
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        return super.keyPressed(event);
     }
 
     @Override
-    public boolean charTyped(char chr, int modifiers) {
+    public boolean charTyped(CharacterEvent event) {
         if (this.multiplierField.isFocused()) {
-            return this.multiplierField.charTyped(chr, modifiers);
+            return this.multiplierField.charTyped(event);
         }
-        return super.charTyped(chr, modifiers);
+        return super.charTyped(event);
     }
 
     @Override
-    public List<? extends Element> children() {
-        List<Element> children = new ArrayList<>(super.children());
+    public List<? extends GuiEventListener> children() {
+        List<GuiEventListener> children = new ArrayList<>(super.children());
         if (!this.fieldInSeparateRow) {
             children.add(this.multiplierField);
         }
@@ -219,12 +196,12 @@ public class MultiplierSliderEntry extends IntegerSliderEntry {
 
     /** Unparseable text, including an empty box, reverts to the current value. */
     private void commitField() {
-        MultiplierFormat.parse(this.multiplierField.getText()).ifPresentOrElse(
+        MultiplierFormat.parse(this.multiplierField.getValue()).ifPresentOrElse(
                 parsed -> {
                     applySliderValue(toSlider(parsed));
-                    this.multiplierField.setText(MultiplierFormat.format(parsed));
+                    this.multiplierField.setValue(MultiplierFormat.format(parsed));
                 },
-                () -> this.multiplierField.setText(MultiplierFormat.format(fromSlider(getValue())))
+                () -> this.multiplierField.setValue(MultiplierFormat.format(fromSlider(getValue())))
         );
     }
 
@@ -241,8 +218,8 @@ public class MultiplierSliderEntry extends IntegerSliderEntry {
 
         // The slider stores discrete steps, so format from the same source the label uses.
         String target = MultiplierFormat.format(fromSlider(getValue()));
-        if (!target.equals(this.multiplierField.getText())) {
-            this.multiplierField.setText(target);
+        if (!target.equals(this.multiplierField.getValue())) {
+            this.multiplierField.setValue(target);
         }
     }
 
@@ -253,14 +230,13 @@ public class MultiplierSliderEntry extends IntegerSliderEntry {
     @SuppressWarnings("deprecation")
     private void applySliderValue(int sliderValue) {
         setValue(sliderValue);
-        this.multiplierField.setText(MultiplierFormat.format(fromSlider(sliderValue)));
+        this.multiplierField.setValue(MultiplierFormat.format(fromSlider(sliderValue)));
         save();
     }
 
     /** Shared by the slider's own reset button and the companion row's. */
     public void resetToDefault() {
         applySliderValue(toSlider(1.0D));
-        this.multiplierField.setText(MultiplierFormat.format(1.0D));
     }
 
     /**

@@ -1,16 +1,16 @@
 package com.fasterflight;
 
 import com.fasterflight.config.FasterFlightConfig;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.entity.player.PlayerAbilities;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.world.entity.player.Abilities;
 
 /**
  * Applies and restores the flight speed multiplier on the local player.
  *
- * <p>Only {@link PlayerAbilities#getFlySpeed()} is touched, which vanilla uses for both horizontal
- * and vertical flight, so ascent and descent scale without extra velocity manipulation. Nothing is
- * sent to the server, and {@code abilities.flying} is left alone.
+ * <p>Only {@link Abilities#getFlyingSpeed()} is touched, which vanilla uses for both horizontal and
+ * vertical flight, so ascent and descent scale without extra velocity manipulation. Nothing is sent
+ * to the server, and {@code abilities.flying} is left alone.
  */
 public final class FlightSpeedController {
 
@@ -27,15 +27,15 @@ public final class FlightSpeedController {
     private FlightSpeedController() {
     }
 
-    public static void tick(MinecraftClient client, boolean boostHeld) {
-        ClientPlayerEntity player = client.player;
+    public static void tick(Minecraft client, boolean boostHeld) {
+        LocalPlayer player = client.player;
         if (player == null) {
             // Left the world, so the next world captures a fresh base.
             reset();
             return;
         }
 
-        PlayerAbilities abilities = player.getAbilities();
+        Abilities abilities = player.getAbilities();
 
         if (!boostHeld) {
             restore(abilities);
@@ -43,11 +43,11 @@ public final class FlightSpeedController {
         }
 
         if (baseFlySpeed == null) {
-            baseFlySpeed = abilities.getFlySpeed();
+            baseFlySpeed = abilities.getFlyingSpeed();
         }
 
         // Re-asserted every tick because a server-sent abilities packet would otherwise cancel it.
-        abilities.setFlySpeed((float) (baseFlySpeed * FasterFlightConfig.getMultiplier()));
+        abilities.setFlyingSpeed((float) (baseFlySpeed * FasterFlightConfig.getMultiplier()));
         boosted = true;
     }
 
@@ -55,9 +55,9 @@ public final class FlightSpeedController {
         return boosted;
     }
 
-    private static void restore(PlayerAbilities abilities) {
+    private static void restore(Abilities abilities) {
         if (boosted) {
-            abilities.setFlySpeed(baseFlySpeed != null ? baseFlySpeed : FALLBACK_BASE_FLY_SPEED);
+            abilities.setFlyingSpeed(baseFlySpeed != null ? baseFlySpeed : FALLBACK_BASE_FLY_SPEED);
             boosted = false;
         }
     }

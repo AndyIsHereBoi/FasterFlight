@@ -1,7 +1,8 @@
 name: Build
 
 on:
-  # Every branch, so a commit is verified wherever it lands rather than only once merged to main.
+  # Every branch, so a commit is verified wherever it lands rather than only once merged to the
+  # default branch (currently 1.18.x-1.19.x).
   push:
   pull_request:
   workflow_dispatch:

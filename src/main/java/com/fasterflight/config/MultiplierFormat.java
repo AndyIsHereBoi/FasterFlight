@@ -1,8 +1,8 @@
 package com.fasterflight.config;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.text.Text;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.network.chat.Component;
 
 import java.util.Locale;
 import java.util.OptionalDouble;
@@ -49,12 +49,12 @@ public final class MultiplierFormat {
         }
     }
 
-    public static Text toText(double value) {
-        return TextCompat.literal(formatWithSuffix(value));
+    public static Component toComponent(double value) {
+        return Component.literal(formatWithSuffix(value));
     }
 
-    static TextRenderer font() {
-        return MinecraftClient.getInstance().textRenderer;
+    static Font font() {
+        return Minecraft.getInstance().font;
     }
 
     private MultiplierFormat() {

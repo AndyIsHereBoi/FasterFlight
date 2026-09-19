@@ -1,15 +1,13 @@
 package com.fasterflight.config;
 
-import me.shedaniel.clothconfig2.api.ConfigScreen;
-import me.shedaniel.clothconfig2.api.QueuedTooltip;
+import me.shedaniel.clothconfig2.api.Tooltip;
+import me.shedaniel.clothconfig2.gui.AbstractConfigScreen;
 import me.shedaniel.math.Point;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.text.OrderedText;
-import net.minecraft.text.Text;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
+import net.minecraft.util.FormattedCharSequence;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -34,39 +32,22 @@ final class TooltipBar {
      * later, so the visible hint always matches the row under the cursor.
      */
     static void publish(String hintKey) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        Screen screen = client.currentScreen;
-        if (!(screen instanceof ConfigScreen configScreen)) {
+        Minecraft client = Minecraft.getInstance();
+        Screen screen = client.screen;
+        if (!(screen instanceof AbstractConfigScreen configScreen)) {
             return;
         }
 
-        TextRenderer font = client.textRenderer;
-        List<Text> lines = new ArrayList<>();
-        for (OrderedText wrapped : font.wrapLines(TextCompat.translatable(hintKey), WRAP_PIXELS)) {
-            lines.add(toText(wrapped));
-        }
+        List<FormattedCharSequence> lines = client.font.split(Component.translatable(hintKey), WRAP_PIXELS);
         if (lines.isEmpty()) {
             return;
         }
 
-        int blockWidth = lines.stream().mapToInt(font::getWidth).max().orElse(0);
-        int blockHeight = lines.size() * (font.fontHeight + 1);
+        int blockWidth = lines.stream().mapToInt(client.font::width).max().orElse(0);
+        int blockHeight = lines.size() * (client.font.lineHeight + 1);
         int x = Math.max(4, (screen.width - blockWidth) / 2);
         int y = Math.max(4, screen.height - BOTTOM_MARGIN - blockHeight);
 
-        configScreen.addTooltip(QueuedTooltip.create(new Point(x, y), lines));
-    }
-
-    /**
-     * OrderedText exposes no plain accessor, so the characters are collected through its visitor. Any
-     * styling is dropped because the tooltip is rebuilt as a fresh literal.
-     */
-    private static Text toText(OrderedText ordered) {
-        StringBuilder builder = new StringBuilder();
-        ordered.accept((index, style, codePoint) -> {
-            builder.appendCodePoint(codePoint);
-            return true;
-        });
-        return TextCompat.literal(builder.toString());
+        configScreen.addTooltip(Tooltip.of(new Point(x, y), lines.toArray(FormattedCharSequence[]::new)));
     }
 }

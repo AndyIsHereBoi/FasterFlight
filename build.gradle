@@ -1,5 +1,6 @@
 plugins {
-    id 'fabric-loom' version '1.5-SNAPSHOT'
+    // The plugin id changed from 'fabric-loom' to 'net.fabricmc.fabric-loom' in the Loom 1.17 series.
+    id 'net.fabricmc.fabric-loom' version "${loom_version}"
     id 'maven-publish'
 }
 
@@ -22,36 +23,28 @@ repositories {
 dependencies {
     // To change the versions see the gradle.properties file
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
-    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+
+    // No mappings dependency: Minecraft 26.x ships unobfuscated, so code compiles against Mojang's
+    // official names, which are also the names present at runtime. That also removes the need for
+    // the mod/implementation split, since nothing has to be remapped.
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+
     // Fabric API for client-side events, keybinds and HUD rendering
-    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
-    // Cloth Config - required at runtime for the settings screen.
-    // Its transitive fabric-loader dependency is excluded because it pins an older loader (0.14.8)
-    // which Loom would otherwise remap as a second loader jar on the runtime classpath and clash
-    // with the loader version declared in gradle.properties. The loader is supplied by Loom itself.
-    modApi("me.shedaniel.cloth:cloth-config-fabric:${project.cloth_config_version}") {
-        exclude(group: "net.fabricmc.fabric-api")
-        exclude(group: "net.fabricmc", module: "fabric-loader")
-    }
+    // Cloth Config - required at runtime for the settings screen, and supplied by the player rather
+    // than bundled. Compiled against, and also on the dev runtime classpath so the screen remains
+    // testable in the dev client.
+    //
+    // Note the absence of modImplementation/modApi: Minecraft 26.x is unobfuscated, so mod jars need
+    // no remapping and plain Gradle configurations are used for everything.
+    compileOnly "me.shedaniel.cloth:cloth-config-fabric:${project.cloth_config_version}"
+    runtimeOnly "me.shedaniel.cloth:cloth-config-fabric:${project.cloth_config_version}"
 
-    // Declared explicitly so me.shedaniel.math.Point (used by Cloth's Tooltip API) resolves on the
-    // compile classpath. It already arrives transitively via Cloth Config; this just names it so the
-    // dependency is not relying on that remaining true.
-    compileOnly "me.shedaniel.cloth:basic-math:0.6.1"
-
-    // ModMenu - compile-only, plus a local runtime copy so the "Configure" button is testable in
-    // the dev client. ModMenu is listed under "recommends" in fabric.mod.json rather than "depends",
-    // so it is never required at runtime: the mod was verified to load and run without it.
-    // Its transitive fabric-loader dependency is excluded because ModMenu pins an older loader
-    // (0.14.8). Left in place, Loom remaps that as a second loader jar onto the runtime classpath,
-    // which clashes with the loader version in gradle.properties and crashes at launch.
-    // The loader is supplied by Loom itself.
-    modCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
-    modLocalRuntime("com.terraformersmc:modmenu:${project.modmenu_version}") {
-        exclude(group: "net.fabricmc", module: "fabric-loader")
-    }
+    // ModMenu - optional at runtime. Listed under "recommends" in fabric.mod.json, never "depends".
+    // Compile-only, plus a dev runtime copy so the "Configure" button stays testable.
+    compileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
+    runtimeOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
 }
 
 processResources {
@@ -63,12 +56,12 @@ processResources {
 }
 
 tasks.withType(JavaCompile).configureEach {
-    it.options.release = 17
+    it.options.release = 25
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
 
     withSourcesJar()
 }
